@@ -1,0 +1,6 @@
+/target/
+/pagi_knowledge_base/
+**/*.swp
+**/*.swo
+.DS_Store
+
