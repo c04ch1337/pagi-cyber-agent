@@ -5,6 +5,8 @@ It simulates **security triage**, maintains a lightweight **security state snaps
 
 This repo is intentionally scaffold-focused: it provides a clear starting point for integrating real enterprise security tools (Zscaler, CrowdStrike, Proofpoint, Jira, Meraki, SIEMs, etc.) while keeping the code easy to follow for junior developers.
 
+> **Status:** scaffold / reference implementation. It is **not** production-ready (no auth, no secrets handling, no real connectors, minimal validation).
+
 ---
 
 ## ✨ What it does
@@ -98,6 +100,15 @@ Indirect (via `pagi-core-lib`): `sled`, `interprocess`, etc.
 - Rust toolchain (stable): https://rustup.rs/
 - Git
 
+### 📥 Quickstart (recommended clone layout)
+
+Because this crate depends on `pagi-core-lib` via a **sibling path**, the easiest workflow is to clone both repos under the same parent directory:
+
+```bash
+git clone <YOUR_GITHUB_URL>/pagi-core-lib.git
+git clone <YOUR_GITHUB_URL>/pagi-cyber-agent.git
+```
+
 ### 🧩 Important: sibling path dependency
 
 This crate depends on `pagi-core-lib` via a **sibling path**:
@@ -115,6 +126,8 @@ some-parent-folder/
 ```
 
 If you clone only this repository by itself somewhere else, the build will fail until you also place `pagi-core-lib` next to it.
+
+If you want to avoid sibling path dependencies, switch `pagi-core-lib` to a git dependency or crates.io once it’s published.
 
 ---
 
@@ -146,6 +159,14 @@ Typical output:
 Cybersecurity triage complete. directive=ORCHESTRATE_RESPONSE: block_user, investigate_logs, create_ticket; rule_written=rule_crowdstrike_...
 ```
 
+### Clean Knowledge Base (reset local state)
+
+The Sled database is created under `./pagi_knowledge_base/`. To reset local state during development:
+
+```bash
+rm -rf ./pagi_knowledge_base
+```
+
 ---
 
 ## 📚 Knowledge Base (Sled DB)
@@ -159,6 +180,30 @@ This agent uses (or creates) these trees:
 - `security_policy_tree` — stores the current [`SecurityPolicy`](src/policy_manager.rs:5) snapshot (key: `current`)
 - `rules` — stores serialized [`PAGIRule`](src/cybersecurity_agent.rs:70) entries
 - `facts` — written via `pagi-core-lib` when the agent records an [`AgentFact`](src/cybersecurity_agent.rs:98)
+
+### Example fact payload
+
+The fact content is stored as a JSON string (see [`BaseAgent::run()`](src/cybersecurity_agent.rs:50)). Example (pretty-printed):
+
+```json
+{
+  "task_input": "HIGH_SEVERITY_ALERT: Source=Rapid7 SIEM, User=Alice",
+  "plan_directive": "ORCHESTRATE_RESPONSE: block_user, investigate_logs, create_ticket",
+  "policy_snapshot": {
+    "zscaler_status": "OK",
+    "crowdstrike_endpoint_count": 42,
+    "proofpoint_quarantined_emails": 3,
+    "jira_open_tickets": 7,
+    "meraki_network_health": "DEGRADED"
+  },
+  "rule_written": {
+    "id": "rule_crowdstrike_123",
+    "condition_fact_type": "SecurityTriage",
+    "condition_keyword": "Crowdstrike",
+    "action_directive": "Send Alert to Jira"
+  }
+}
+```
 
 Note: `pagi_knowledge_base` is ignored by git via [`.gitignore`](.gitignore:1).
 
@@ -260,3 +305,5 @@ Planned evolution from scaffold → production-ish agent:
 ## 📄 License
 
 TBD (add a license file when you decide on licensing).
+
+Until a license is added, treat this repository as source-available but not licensed for redistribution beyond what GitHub’s default terms imply.
