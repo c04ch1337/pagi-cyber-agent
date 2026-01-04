@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use sled::Db;
 
 /// A simplified snapshot of enterprise security tooling state.
 #[derive(Debug, Serialize, Deserialize)]
@@ -29,7 +30,7 @@ fn default_policy() -> SecurityPolicy {
 ///
 /// This is intentionally a "best effort" loader. If the policy isn't present yet,
 /// it seeds a default policy into the tree and returns it.
-pub fn load_policy(db: &pagi_core_lib::sled::Db) -> SecurityPolicy {
+pub fn load_policy(db: &Db) -> SecurityPolicy {
     let Ok(tree) = db.open_tree(SECURITY_POLICY_TREE) else {
         return default_policy();
     };
@@ -47,4 +48,3 @@ pub fn load_policy(db: &pagi_core_lib::sled::Db) -> SecurityPolicy {
     }
     policy
 }
-

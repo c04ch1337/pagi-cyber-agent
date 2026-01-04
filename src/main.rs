@@ -13,4 +13,3 @@ async fn main() {
         .await;
     println!("{result}");
 }
-

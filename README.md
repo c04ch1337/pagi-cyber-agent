@@ -1,11 +1,20 @@
 # 🛡️ PAGI Cyber Agent (`pagi-cyber-agent`)
 
+[![CI](https://github.com/c04ch1337/pagi-cyber-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/c04ch1337/pagi-cyber-agent/actions/workflows/ci.yml)
+[![Clippy](https://github.com/c04ch1337/pagi-cyber-agent/actions/workflows/clippy.yml/badge.svg)](https://github.com/c04ch1337/pagi-cyber-agent/actions/workflows/clippy.yml)
+
 `pagi-cyber-agent` is a specialized **Cybersecurity Agent layer** for the PAGI ecosystem.
 It simulates **security triage**, maintains a lightweight **security state snapshot**, and **writes knowledge** (facts + rules) into the shared **PAGI Knowledge Base** (Sled DB) so other components can reason and orchestrate follow-on actions.
 
 This repo is intentionally scaffold-focused: it provides a clear starting point for integrating real enterprise security tools (Zscaler, CrowdStrike, Proofpoint, Jira, Meraki, SIEMs, etc.) while keeping the code easy to follow for junior developers.
 
 > **Status:** scaffold / reference implementation. It is **not** production-ready (no auth, no secrets handling, no real connectors, minimal validation).
+
+## TL;DR
+
+- Run a simulated triage with [`cargo run`](src/main.rs:1) (writes facts/rules into a local Sled KB at `./pagi_knowledge_base/`).
+- Core agent logic: [`CybersecurityAgent`](src/cybersecurity_agent.rs:8) implementing [`BaseAgent::run()`](src/cybersecurity_agent.rs:50).
+- Build requires a sibling checkout of `pagi-core-lib` (see [Sibling path dependency](README.md:112)).
 
 ---
 
@@ -17,7 +26,7 @@ When you run the binary, it:
 2. Simulates triage:
    - If input contains `HIGH_SEVERITY_ALERT`, it generates an orchestration directive.
 3. Creates a symbolic rule if it detects an unhealthy state (e.g., too few CrowdStrike endpoints).
-4. Writes an `AgentFact` (`fact_type = "SecurityTriage"`) into the Knowledge Base.
+4. Writes a [`Fact`](src/cybersecurity_agent.rs:114) (`fact_type = "SecurityTriage"`) into the Knowledge Base.
 
 Core logic lives in [`CybersecurityAgent`](src/cybersecurity_agent.rs:8) implementing [`BaseAgent::run()`](src/cybersecurity_agent.rs:50).
 
@@ -71,7 +80,7 @@ sequenceDiagram
   KB-->>Agent: SecurityPolicy (or default seeded)
   Agent->>Agent: if input contains HIGH_SEVERITY_ALERT
   Agent->>KB: maybe insert PAGIRule into tree "rules"
-  Agent->>Core: record_fact(AgentFact{fact_type:"SecurityTriage"})
+  Agent->>Core: record_fact(Fact{fact_type:"SecurityTriage"})
   Core->>KB: insert into tree "facts" + flush
   Core-->>Agent: Ok
   Agent-->>Caller: success String
@@ -87,7 +96,8 @@ From [`Cargo.toml`](Cargo.toml:1):
 - `async-trait` — allows async traits / implementations (used by [`BaseAgent::run()`](src/cybersecurity_agent.rs:50))
 - `serde` + `serde_json` — serialize/deserialize policy, rules, and fact content
 - `pagi-core-lib` (path dependency) — shared contracts and Knowledge Base utilities
-  - Provides `BaseAgent`, `AgentFact`, `PAGIRule`, and the Sled KB integration used by this repo
+  - Provides `BaseAgent`, `Fact`, and the Sled KB integration used by this repo
+  - Note: [`PAGIRule`](src/cybersecurity_agent.rs:17) is defined locally in this crate
 
 Indirect (via `pagi-core-lib`): `sled`, `interprocess`, etc.
 
@@ -105,8 +115,8 @@ Indirect (via `pagi-core-lib`): `sled`, `interprocess`, etc.
 Because this crate depends on `pagi-core-lib` via a **sibling path**, the easiest workflow is to clone both repos under the same parent directory:
 
 ```bash
-git clone <YOUR_GITHUB_URL>/pagi-core-lib.git
-git clone <YOUR_GITHUB_URL>/pagi-cyber-agent.git
+git clone git@github.com:c04ch1337/pagi-core-lib.git
+git clone git@github.com:c04ch1337/pagi-cyber-agent.git
 ```
 
 ### 🧩 Important: sibling path dependency
@@ -147,6 +157,23 @@ The default entrypoint already runs a sample triage input in [`main()`](src/main
 cargo run
 ```
 
+### Verify the sibling dependency is in place
+
+If you see an error like `failed to read ../pagi-core-lib/Cargo.toml`, confirm your directory layout matches the sibling path dependency described in [`Cargo.toml`](Cargo.toml:1).
+
+From the parent directory that contains both repos:
+
+```bash
+ls -la
+```
+
+You should see:
+
+```text
+pagi-core-lib/
+pagi-cyber-agent/
+```
+
 Example input:
 
 ```text
@@ -178,8 +205,8 @@ The Knowledge Base is an embedded Sled database created in the working directory
 This agent uses (or creates) these trees:
 
 - `security_policy_tree` — stores the current [`SecurityPolicy`](src/policy_manager.rs:5) snapshot (key: `current`)
-- `rules` — stores serialized [`PAGIRule`](src/cybersecurity_agent.rs:70) entries
-- `facts` — written via `pagi-core-lib` when the agent records an [`AgentFact`](src/cybersecurity_agent.rs:98)
+- `rules` — stores serialized [`PAGIRule`](src/cybersecurity_agent.rs:17) entries
+- `facts` — written via `pagi-core-lib` when the agent records a [`Fact`](src/cybersecurity_agent.rs:114)
 
 ### Example fact payload
 
@@ -250,6 +277,17 @@ This scaffold writes JSON into Sled trees. A simple technique is to temporarily 
 - [`BaseAgent::run()`](src/cybersecurity_agent.rs:50)
 
 Later, we can add a small `kb_inspect` subcommand or a separate debug binary to pretty-print facts and rules.
+
+---
+
+## ✅ CI (GitHub Actions)
+
+This repo includes GitHub Actions workflows that check out both sibling repos (to satisfy the `../pagi-core-lib` path dependency) and then run builds/tests/lints.
+
+- Build + test: [`.github/workflows/ci.yml`](.github/workflows/ci.yml:1)
+- Clippy lint: [`.github/workflows/clippy.yml`](.github/workflows/clippy.yml:1)
+
+If you fork or rename repos, update the `repository:` value in the workflows.
 
 ---
 

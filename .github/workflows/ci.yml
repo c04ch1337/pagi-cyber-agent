@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Check out sibling dependency first so `../pagi-core-lib` resolves.
+      - name: Checkout pagi-core-lib (sibling)
+        uses: actions/checkout@v4
+        with:
+          repository: c04ch1337/pagi-core-lib
+          path: pagi-core-lib
+
+      - name: Checkout pagi-cyber-agent
+        uses: actions/checkout@v4
+        with:
+          path: pagi-cyber-agent
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            pagi-cyber-agent -> target
+
+      - name: Build
+        working-directory: pagi-cyber-agent
+        run: cargo build --locked
+
+      - name: Test
+        working-directory: pagi-cyber-agent
+        run: cargo test --locked

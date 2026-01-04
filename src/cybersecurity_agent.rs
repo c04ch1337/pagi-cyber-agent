@@ -1,19 +1,35 @@
 use async_trait::async_trait;
-use pagi_core_lib::{AgentFact, BaseAgent, PAGICoreModel, PAGIRule, KNOWLEDGE_BASE_PATH};
+use pagi_core_lib::{BaseAgent, Fact, PAGICoreModel, DEFAULT_KNOWLEDGE_BASE_PATH};
+use serde::{Deserialize, Serialize};
+use sled::Db;
 
 use crate::policy_manager;
 
 const RULES_TREE: &str = "rules";
 
+/// A minimal, symbolic rule record persisted by this agent.
+///
+/// Notes:
+/// - This is intentionally local to `pagi-cyber-agent` (not provided by `pagi-core-lib`).
+/// - Rules are persisted into the KB tree `rules` as JSON blobs for later consumption by an
+///   orchestrator / rule engine.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PAGIRule {
+    pub id: String,
+    pub condition_fact_type: String,
+    pub condition_keyword: String,
+    pub action_directive: String,
+}
+
 pub struct CybersecurityAgent {
     agent_id: String,
-    db: pagi_core_lib::sled::Db,
+    db: Db,
     core: PAGICoreModel,
 }
 
 impl CybersecurityAgent {
     pub fn new() -> Self {
-        let db = pagi_core_lib::sled::open(KNOWLEDGE_BASE_PATH)
+        let db = sled::open(DEFAULT_KNOWLEDGE_BASE_PATH)
             .expect("failed to open sled knowledge base for CybersecurityAgent");
         let core = PAGICoreModel::from_db(db.clone());
         Self {
@@ -95,20 +111,22 @@ impl BaseAgent for CybersecurityAgent {
             content["rule_written"] = serde_json::to_value(rule).unwrap_or(serde_json::Value::Null);
         }
 
-        let fact = AgentFact {
+        let fact = Fact {
             agent_id: self.agent_id.clone(),
             timestamp: Self::now_unix_seconds(),
             fact_type: "SecurityTriage".to_string(),
             content: content.to_string(),
         };
 
-        let _ = self.core.record_fact(fact);
+        let _ = self.core.record_fact(fact).await;
 
         format!(
             "Cybersecurity triage complete. directive={}; rule_written={}",
             plan_directive,
-            rule_written.as_ref().map(|r| r.id.as_str()).unwrap_or("none")
+            rule_written
+                .as_ref()
+                .map(|r| r.id.as_str())
+                .unwrap_or("none")
         )
     }
 }
-
